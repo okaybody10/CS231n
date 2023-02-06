@@ -74,8 +74,6 @@ class PositionalEncoding(nn.Module):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         
-        test = torch.ones_like(output)
-        print(self.dropout(test))
         output = self.dropout(x + self.pe[:, :S, :])
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
@@ -172,7 +170,20 @@ class MultiHeadAttention(nn.Module):
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
         # Hmm.. (N, S, E....)
-        # (N, S, H, E/H), (N, T, H, E/H), 
+        # (N, S, H, E/H), (N, T, H, E/H)
+        # (N, H, S, E/H) * (N, H, E/H, T) => (N, H, S, T)
+        # divde sqrt(E/H) and softmax
+        # (N, T, H, E/H) => (N, H, T, E/H) => (N, H, S, E/H) => (N, S, H, E/H) => (N, S, E)
+        multi_head_query = torch.permute(self.query(query).contiguous().view(N, S, self.n_head, self.head_dim), (0, 2, 1, 3))
+        multi_head_key = torch.permute(self.key(key).contiguous().view(N, T, self.n_head, self.head_dim), (0, 2, 3, 1))
+        multi_head_value = torch.permute(self.value(value).contiguous().view(N, T, self.n_head, self.head_dim), (0, 2, 1, 3)) # (N, H, T, E/H)
+        not_mask = torch.matmul(multi_head_query, multi_head_key) / math.sqrt(self.head_dim)
+        if attn_mask is not None :
+          not_mask = torch.masked_fill(not_mask, attn_mask == 0, value = -1e-12)
+        weight = F.softmax(not_mask, dim= -1) # (N, H, S, T)
+        weight = self.attn_drop(weight)
+        output = torch.permute(torch.matmul(weight, multi_head_value), (0, 2, 1, 3)).contiguous().view(N, S, -1) # (N, H, S, E/H)
+        output = self.proj(output)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
