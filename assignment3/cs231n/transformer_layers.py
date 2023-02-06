@@ -179,7 +179,7 @@ class MultiHeadAttention(nn.Module):
         multi_head_value = torch.permute(self.value(value).contiguous().view(N, T, self.n_head, self.head_dim), (0, 2, 1, 3)) # (N, H, T, E/H)
         not_mask = torch.matmul(multi_head_query, multi_head_key) / math.sqrt(self.head_dim)
         if attn_mask is not None :
-          not_mask = torch.masked_fill(not_mask, attn_mask == 0, value = -1e-12)
+          not_mask = torch.masked_fill(not_mask, attn_mask == 0, value = -float('inf'))
         weight = F.softmax(not_mask, dim= -1) # (N, H, S, T)
         weight = self.attn_drop(weight)
         output = torch.permute(torch.matmul(weight, multi_head_value), (0, 2, 1, 3)).contiguous().view(N, S, -1) # (N, H, S, E/H)
